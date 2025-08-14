@@ -1,0 +1,12 @@
+{
+    "FLASK_SECRET_KEY": "",
+    "ADMIN_PASSWORD_HASH": "",
+    "STRESS_TEST_ADMIN_PASSWORD": "",
+    "CARD_DURATIONS": {
+        "monthly": 30,
+        "quarterly": 90,
+        "yearly": 365,
+        "trial": 7
+    },
+    "GENERATE_CODE_LIMIT": 5000
+}

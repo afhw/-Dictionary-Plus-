@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后台管理面板 - 专业版</title>
+    <style>
+        :root{--primary-color:#3498db;--success-color:#2ecc71;--danger-color:#e74c3c;--warning-color:#f1c40f;--light-gray:#ecf0f1;--dark-gray:#7f8c8d;--text-color:#34495e;--bg-color:#f4f7f9}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background-color:var(--bg-color);color:var(--text-color);margin:0;padding:20px}.container{max-width:1400px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;padding-bottom:15px;margin-bottom:25px;border-bottom:2px solid var(--light-gray)}header h1{margin:0;font-size:1.8em}.nav-links a, .button-small{text-decoration:none;color:#fff;padding:10px 18px;border-radius:6px;margin-left:10px;transition:background-color .3s}.nav-monitoring{background-color:var(--success-color)}.nav-monitoring:hover{background-color:#27ae60}.nav-logout{background-color:var(--danger-color)}.nav-logout:hover{background-color:#c0392b}.card{background-color:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.08);padding:25px;margin-bottom:25px}.card h2{margin-top:0;margin-bottom:20px;font-size:1.4em;border-bottom:1px solid var(--light-gray);padding-bottom:10px}.main-grid{display:grid;grid-template-columns:1fr 2.5fr;gap:25px}@media (max-width:992px){.main-grid{grid-template-columns:1fr}}.form-group{margin-bottom:15px}.form-group label{display:block;margin-bottom:5px;font-weight:600}input[type=number],input[type=text],select{width:100%;padding:10px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box}.button{background-color:var(--primary-color);color:#fff;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:1em;width:100%;transition:background-color .3s}.button:hover{background-color:#2980b9}.table-wrapper{overflow-x:auto}table{width:100%;border-collapse:collapse}td,th{padding:12px 15px;text-align:left;border-bottom:1px solid var(--light-gray);white-space:nowrap}thead th{background-color:#f8f9fa;font-weight:600}tbody tr:nth-child(even){background-color:#fdfdfd}tbody tr:hover{background-color:#f1f8ff}.code-col{font-family:'Courier New',Courier,monospace;font-weight:700}.status-badge{padding:4px 10px;border-radius:12px;font-size:.8em;font-weight:700;color:#fff}.status-unused{background-color:var(--success-color)}.status-used{background-color:var(--dark-gray)}.table-controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:15px}.search-box{width:100%}.pagination{display:flex;justify-content:center;align-items:center;margin-top:20px}.pagination button{background:0 0;border:1px solid #ddd;padding:8px 12px;margin:0 2px;cursor:pointer;border-radius:4px}.pagination button:hover{background-color:var(--light-gray)}.pagination button.active{background-color:var(--primary-color);color:#fff;border-color:var(--primary-color)}.pagination button:disabled{color:#ccc;cursor:not-allowed}.summary-stats{margin-bottom:20px;padding:15px;background:var(--light-gray);border-radius:6px;display:flex;gap:20px}.copy-icon{cursor:pointer;margin-left:10px;opacity:.6;transition:opacity .2s}.copy-icon:hover{opacity:1}.tooltip{position:relative;display:inline-block}.tooltip .tooltiptext{visibility:hidden;width:80px;background-color:#555;color:#fff;text-align:center;border-radius:6px;padding:5px 0;position:absolute;z-index:1;bottom:125%;left:50%;margin-left:-40px;opacity:0;transition:opacity .3s}.tooltip .tooltiptext:after{content:"";position:absolute;top:100%;left:50%;margin-left:-5px;border-width:5px;border-style:solid;border-color:#555 transparent transparent}.tooltip.show .tooltiptext{visibility:visible;opacity:1}.loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.7);display:flex;justify-content:center;align-items:center;z-index:10;font-weight:700}.button-small{padding:6px 12px;font-size:.8em;margin-left:0;border:none;cursor:pointer}.button-delete{background-color:var(--danger-color)}.button-delete:hover{background-color:#c0392b}.flash-error{background-color:#f8d7da;color:#721c24;padding:12px;border-radius:5px}.flash-success{background-color:#d4edda;color:#155724;padding:12px;border-radius:5px}.error-text{color:var(--danger-color);font-size:.9em;margin-top:4px}
+    </style>
+</head>
+<body>
+<!-- *** 关键修正 1: 将CSRF令牌放在一个全局可访问的地方 *** -->
+<input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
+
+<div class="container">
+    <header><h1>后台管理面板</h1><div class="nav-links"><a href="{{ url_for('monitoring') }}" class="nav-monitoring">实时监控</a><a href="{{ url_for('logout') }}" class="nav-logout">安全登出</a></div></header>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="card flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="main-grid">
+        <div class="left-column">
+            <div class="card">
+                <h2>生成激活码</h2>
+                <form method="POST" action="{{ url_for('manage') }}" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ form.quantity.label }}
+                        {{ form.quantity(class="form-control") }}
+                        {% for error in form.quantity.errors %}<div class="error-text">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        {{ form.card_type.label }}
+                        {{ form.card_type(class="form-control") }}
+                    </div>
+                    <button type="submit" class="button">立即生成</button>
+                </form>
+            </div>
+            <div class="card" style="position: relative;">
+                <div id="devices-loading" class="loading-overlay">正在加载数据...</div>
+                <h2>已激活设备列表</h2>
+                <div class="summary-stats"><strong>总数: <span id="device-count">0</span></strong></div>
+                <div class="table-controls"><div class="search-box"><input type="text" id="device-search-input" placeholder="搜索设备ID..."></div></div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead><tr><th>设备ID</th><th>类型</th><th>到期时间</th><th>操作</th></tr></thead>
+                        <tbody id="devices-table-body"></tbody>
+                    </table>
+                </div>
+                <div id="device-pagination-controls" class="pagination"></div>
+            </div>
+        </div>
+        <div class="right-column">
+            <div class="card" style="position: relative;">
+                <div id="codes-loading" class="loading-overlay">正在加载数据...</div>
+                <h2>激活码管理</h2>
+                <div class="summary-stats"><strong>总计: <span id="total-codes">0</span></strong></div>
+                <div class="table-controls">
+                    <div class="search-box"><input type="text" id="code-search-input" placeholder="搜索激活码或设备ID..."></div>
+                    <div class="filter-checkbox" style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="show-unused-only" style="width: auto;"><label for="show-unused-only" style="margin-bottom: 0; font-weight: normal;">仅显示未使用</label></div>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead><tr><th>激活码</th><th>类型</th><th>状态</th><th>使用者ID</th></tr></thead>
+                        <tbody id="codes-table-body"></tbody>
+                    </table>
+                </div>
+                <div id="code-pagination-controls" class="pagination"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    let state = {
+        codes: { page: 1, search: '', unused: false, total: 0, perPage: 10 },
+        devices: { page: 1, search: '', total: 0, perPage: 10 }
+    };
+    let debounceTimer;
+
+    const codeSearchInput = document.getElementById('code-search-input');
+    const showUnusedCheckbox = document.getElementById('show-unused-only');
+    const codesTbody = document.getElementById('codes-table-body');
+    const codePaginationControls = document.getElementById('code-pagination-controls');
+    const codesLoading = document.getElementById('codes-loading');
+
+    const deviceSearchInput = document.getElementById('device-search-input');
+    const devicesTbody = document.getElementById('devices-table-body');
+    const devicePaginationControls = document.getElementById('device-pagination-controls');
+    const devicesLoading = document.getElementById('devices-loading');
+
+    async function fetchData() {
+        codesLoading.style.display = 'flex';
+        devicesLoading.style.display = 'flex';
+
+        const url = new URL("{{ url_for('management_data') }}", window.location.origin);
+        url.searchParams.set('code_page', state.codes.page);
+        url.searchParams.set('code_per_page', state.codes.perPage);
+        url.searchParams.set('code_search', state.codes.search);
+        url.searchParams.set('show_unused', state.codes.unused);
+
+        url.searchParams.set('device_page', state.devices.page);
+        url.searchParams.set('device_per_page', state.devices.perPage);
+        url.searchParams.set('device_search', state.devices.search);
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`网络响应错误: ${response.statusText}`);
+            const data = await response.json();
+
+            renderCodes(data.codes);
+            renderDevices(data.devices);
+        } catch (error) {
+            console.error("数据加载失败:", error);
+            codesTbody.innerHTML = `<tr><td colspan="4" class="error-text">${error.message}</td></tr>`;
+            devicesTbody.innerHTML = `<tr><td colspan="4" class="error-text">${error.message}</td></tr>`;
+        } finally {
+            codesLoading.style.display = 'none';
+            devicesLoading.style.display = 'none';
+        }
+    }
+
+    function renderCodes(data) {
+        codesTbody.innerHTML = '';
+        document.getElementById('total-codes').innerText = data.total;
+        if (data.items.length === 0) {
+            codesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">没有找到匹配的激活码。</td></tr>';
+        } else {
+            data.items.forEach(item => {
+                const statusBadge = item.used_by ? `<span class="status-badge status-used">已使用</span>` : `<span class="status-badge status-unused">未使用</span>`;
+                const usedByText = item.used_by || '<span style="color:#aaa;">-</span>';
+                codesTbody.innerHTML += `<tr><td class="code-col">${item.code}</td><td>${item.type}</td><td>${statusBadge}</td><td>${usedByText}</td></tr>`;
+            });
+        }
+        setupPagination(codePaginationControls, data.total, data.per_page, data.page, (page) => { state.codes.page = page; fetchData(); });
+    }
+
+    function renderDevices(data) {
+        devicesTbody.innerHTML = '';
+        document.getElementById('device-count').innerText = data.total;
+        if (data.items.length === 0) {
+            devicesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">暂无已激活设备。</td></tr>';
+        } else {
+            data.items.forEach(device => {
+                const expires = new Date(device.expires_at);
+                const isExpired = expires < new Date();
+                const timeStr = expires.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }).replace(/\//g, '-');
+                const deleteBtn = `<button class="button-small button-delete" onclick="revokeAuthorization('${device.machine_id}')">删除</button>`;
+                devicesTbody.innerHTML += `<tr><td class="code-col">${device.machine_id}</td><td>${device.card_type}</td><td style="color:${isExpired?'red':'green'}">${timeStr}</td><td>${deleteBtn}</td></tr>`;
+            });
+        }
+        setupPagination(devicePaginationControls, data.total, data.per_page, data.page, (page) => { state.devices.page = page; fetchData(); });
+    }
+
+    function setupPagination(container, totalItems, rowsPerPage, currentPage, pageChangeCallback) {
+        container.innerHTML = "";
+        const pageCount = Math.ceil(totalItems / rowsPerPage);
+        if (pageCount <= 1) return;
+        const createButton = (text, page, isDisabled = false, isActive = false) => {
+            const btn = document.createElement("button"); btn.innerText = text; btn.disabled = isDisabled;
+            if (isActive) btn.classList.add("active");
+            btn.onclick = () => pageChangeCallback(page);
+            return btn;
+        };
+        container.appendChild(createButton("« 上一页", currentPage - 1, currentPage === 1));
+        const startPage = Math.max(1, currentPage - 2), endPage = Math.min(pageCount, currentPage + 2);
+        if (startPage > 1) container.appendChild(document.createTextNode("..."));
+        for (let i = startPage; i <= endPage; i++) container.appendChild(createButton(i, i, false, i === currentPage));
+        if (endPage < pageCount) container.appendChild(document.createTextNode("..."));
+        container.appendChild(createButton("下一页 »", currentPage + 1, currentPage === pageCount));
+    }
+
+    window.revokeAuthorization = async function(machineId) {
+        if (!confirm(`您确定要删除设备 ${machineId} 的授权吗？\n对应的激活码将会被重置为未使用状态。`)) return;
+
+        // *** 关键修正 2: 读取令牌并添加到 fetch 请求头中 ***
+        const csrfToken = document.getElementById('csrf_token').value;
+
+        try {
+            const response = await fetch("{{ url_for('revoke_authorization') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken  // 添加 CSRF 令牌
+                },
+                body: JSON.stringify({ machine_id: machineId })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || '操作失败');
+            alert(result.message);
+            fetchData(); // 重新加载数据以刷新UI
+        } catch (error) {
+            alert(`错误：${error.message}`);
+        }
+    }
+
+    const handleFilterChange = () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            state.codes.page = 1;
+            state.devices.page = 1;
+            state.codes.search = codeSearchInput.value;
+            state.codes.unused = showUnusedCheckbox.checked;
+            state.devices.search = deviceSearchInput.value;
+            fetchData();
+        }, 300);
+    };
+
+    ['input', 'change'].forEach(evt => {
+        codeSearchInput.addEventListener(evt, handleFilterChange);
+        showUnusedCheckbox.addEventListener(evt, handleFilterChange);
+        deviceSearchInput.addEventListener(evt, handleFilterChange);
+    });
+
+    fetchData();
+});
+</script>
+</body>
+</html>

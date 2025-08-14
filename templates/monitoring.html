@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时监控 - 后台管理</title>
+    <!--
+        注意: 为方便起见，此处使用 CDN 加载 Chart.js。
+        在严格的生产环境中，建议下载此库并从您自己的服务器静态目录提供服务，以避免对外部服务的依赖。
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f4f7f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 20px; }
+        h1 { color: #2c3e50; margin: 0; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background-color: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); padding: 20px; }
+        .card h2 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 1.2em; color: #34495e; }
+        .metric-group { display: flex; justify-content: space-around; align-items: center; margin: 10px 0; }
+        .metric { font-size: 2em; font-weight: bold; color: #2980b9; text-align: center; }
+        .metric-label { text-align: center; font-size: 0.9em; color: #7f8c8d; }
+        .chart-container { position: relative; height: 250px; }
+        .nav-link { text-decoration: none; background: #3498db; color: white; padding: 8px 15px; border-radius: 5px; font-size: 0.9em; }
+        .nav-link:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>实时监控仪表盘</h1>
+        <a href="{{ url_for('manage') }}" class="nav-link">返回主管理页</a>
+    </header>
+
+    <div class="grid-container">
+        <div class="card">
+            <h2>CPU 使用率</h2>
+            <div class="metric-group"><p class="metric"><span id="cpu-percent">--</span>%</p></div>
+            <div class="chart-container"><canvas id="cpuChart"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>内存占用</h2>
+            <div class="metric-group">
+                <div><p class="metric"><span id="mem-percent">--</span>%</p><div class="metric-label">使用率</div></div>
+                <div><p class="metric" style="font-size: 1.5em;"><span id="mem-usage">--</span></p><div class="metric-label">MB</div></div>
+            </div>
+            <div class="chart-container"><canvas id="memoryChart"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>请求分布 (业务API)</h2>
+            <div class="metric-group"><p class="metric"><span id="total-requests">--</span></p><div class="metric-label" style="align-self: flex-end; margin-bottom: 8px;">总请求数</div></div>
+            <div class="chart-container"><canvas id="requestsPieChart"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>网络带宽 (KB/s)</h2>
+            <div class="metric-group" style="font-size: 0.8em; justify-content: space-evenly;">
+                <div><div class="metric-label">⬆ 发送</div><p class="metric" style="color: #ff6384;"><span id="net-sent">--</span></p></div>
+                <div><div class="metric-label">⬇ 接收</div><p class="metric" style="color: #36a2eb;"><span id="net-recv">--</span></p></div>
+            </div>
+             <div class="chart-container"><canvas id="networkChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const COLOR_PALETTE = ['#3498db', '#2ecc71', '#e74c3c', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+    const MAX_DATA_POINTS = 30;
+
+    // --- 图表创建函数 ---
+    const createLineChart = (ctx, label, color) => new Chart(ctx, { type: 'line', data: { labels: Array(MAX_DATA_POINTS).fill(''), datasets: [{ label, data: [], backgroundColor: color + '33', borderColor: color, borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, suggestedMax: 100 } }, plugins: { legend: { display: false } } } });
+    const createDoughnutChart = (ctx) => new Chart(ctx, { type: 'doughnut', data: { labels: [], datasets: [{ label: '请求数', data: [], backgroundColor: COLOR_PALETTE, hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false } });
+    const createNetworkChart = (ctx) => new Chart(ctx, { type: 'line', data: { labels: Array(MAX_DATA_POINTS).fill(''), datasets: [{ label: '发送 (KB/s)', data: [], borderColor: '#ff6384', borderWidth: 2, tension: 0.3, pointRadius: 0 }, { label: '接收 (KB/s)', data: [], borderColor: '#36a2eb', borderWidth: 2, tension: 0.3, pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } } } } });
+    const createMemoryGauge = (ctx) => new Chart(ctx, { type: 'doughnut', data: { labels: ['已使用', '未使用'], datasets: [{ data: [0, 100], backgroundColor: ['#e74c3c', '#ecf0f1'], borderColor: ['#c0392b', '#bdc3c7'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, rotation: -90, circumference: 180, cutout: '70%', plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+
+    // --- 图表实例化 ---
+    const cpuChart = createLineChart(document.getElementById('cpuChart').getContext('2d'), 'CPU 使用率 (%)', '#3498db');
+    const requestsPieChart = createDoughnutChart(document.getElementById('requestsPieChart').getContext('2d'));
+    const networkChart = createNetworkChart(document.getElementById('networkChart').getContext('2d'));
+    // 将内存图表改为仪表盘 + 历史趋势
+    const memoryGauge = createMemoryGauge(document.getElementById('memoryChart').getContext('2d'));
+
+    // --- 图表数据更新函数 ---
+    function updateLiveChartData(chart, newDataPoint) {
+        chart.data.datasets[0].data.push(newDataPoint);
+        if (chart.data.datasets[0].data.length > MAX_DATA_POINTS) {
+            chart.data.datasets[0].data.shift();
+        }
+    }
+
+    function updateDashboard(data) {
+        // CPU
+        document.getElementById('cpu-percent').innerText = data.system.cpu_percent.toFixed(1);
+        updateLiveChartData(cpuChart, data.system.cpu_percent);
+        cpuChart.update('none');
+
+        // 内存
+        const memPercent = data.system.mem_percent;
+        document.getElementById('mem-percent').innerText = memPercent.toFixed(1);
+        document.getElementById('mem-usage').innerText = `${data.system.mem_used_mb} / ${data.system.mem_total_mb}`;
+        memoryGauge.data.datasets[0].data = [memPercent, 100 - memPercent];
+        memoryGauge.data.datasets[0].backgroundColor[0] = memPercent > 90 ? '#e74c3c' : (memPercent > 70 ? '#f1c40f' : '#2ecc71');
+        memoryGauge.update();
+
+        // 请求分布
+        document.getElementById('total-requests').innerText = data.app.total_requests;
+        requestsPieChart.data.labels = data.app.endpoint_pie_chart.labels;
+        requestsPieChart.data.datasets[0].data = data.app.endpoint_pie_chart.data;
+        requestsPieChart.update();
+
+        // 网络
+        const lastNet = data.system.net_history[data.system.net_history.length - 1] || { sent_kbps: 0, recv_kbps: 0 };
+        document.getElementById('net-sent').innerText = lastNet.sent_kbps.toFixed(1);
+        document.getElementById('net-recv').innerText = lastNet.recv_kbps.toFixed(1);
+
+        const sentData = networkChart.data.datasets[0].data;
+        const recvData = networkChart.data.datasets[1].data;
+        sentData.push(lastNet.sent_kbps);
+        recvData.push(lastNet.recv_kbps);
+        if (sentData.length > MAX_DATA_POINTS) {
+            sentData.shift();
+            recvData.shift();
+        }
+        // 动态Y轴
+        const maxSent = Math.max(...sentData, 0);
+        const maxRecv = Math.max(...recvData, 0);
+        const yMax = Math.max(maxSent, maxRecv, 10); // 最小Y轴为10KB/s
+        networkChart.options.scales.y.max = Math.ceil(yMax / 10) * 10; // Y轴向上取整到10的倍数
+        networkChart.update('none');
+    }
+
+    async function fetchData() {
+        try {
+            const response = await fetch("{{ url_for('monitoring_data') }}");
+            if (!response.ok) { console.error('获取监控数据失败:', response.statusText); return; }
+            const data = await response.json();
+            updateDashboard(data);
+        } catch (error) {
+            console.error('请求监控数据时发生错误:', error);
+        }
+    }
+
+    fetchData();
+    setInterval(fetchData, 2000);
+</script>
+
+</body>
+</html>
