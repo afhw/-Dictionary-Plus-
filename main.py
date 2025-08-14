@@ -11,7 +11,7 @@ import flet as ft
 import requests
 
 # --- 常量与辅助函数 ---
-SERVER_URL = "http://103.217.184.120:5000/"
+SERVER_URL = "替换为你的服务器"
 CLIENT_CONFIG_FILE = "client_config.json"
 
 
@@ -320,5 +320,6 @@ async def main(page: ft.Page):
 
 if __name__ == "__main__":
     ft.app(target=main)
+
 
 # --- END OF FILE main.py (Final Corrected Version) ---
